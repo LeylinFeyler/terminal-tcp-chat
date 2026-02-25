@@ -1,0 +1,13 @@
+# executables
+server
+client
+
+# build artifacts
+*.o
+*.a
+*.so
+
+# editor / OS
+*.swp
+*~
+.DS_Store
