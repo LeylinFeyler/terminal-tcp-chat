@@ -15,8 +15,7 @@ When a new client connects, the server sends the full chat history.
 Compile the server and client:
 
 ```
-gcc server.c helpers.c -o server
-gcc client.c helpers.c -o client
+make
 ```
 
 ---
