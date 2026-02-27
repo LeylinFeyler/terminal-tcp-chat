@@ -1,6 +1,7 @@
 # executables
 server
 client
+chat.log
 
 # build artifacts
 *.o

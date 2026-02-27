@@ -1,88 +1,118 @@
-/*
-На сервері
-    структура клієнта (fd + active)
-    список підключених клієнтів
-    логіка додавання клієнта
-    логіка видалення клієнта
-    прийом повідомлення
-    пересилання всім іншим
-    неблокуюче очікування (select)
-
-На клієнті
-    паралельне читання stdin і socket
-    коректний вихід
-    обробка закриття сервера
-*/
-
+#include "helpers.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <string.h>
-#include "helpers.c"
+#include <unistd.h>
+#include <poll.h>
 
-#include <arpa/inet.h>
-#include <asm-generic/socket.h>
+int main(void) {
 
-#define SERVER_PORT 8080
-#define SERVER_IP   "127.0.0.1"
+    /* create tcp socket */
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0) { perror("socket"); exit(1); }
 
-#define BUFFER_SIZE 1024
-
-int main(void)
-{
-    int server_fd;
+    /* configure server address */
     struct sockaddr_in addr;
-    int addrlen = sizeof(addr);
-    char buffer[BUFFER_SIZE];
-
-    server_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_fd < 0) {
-        perror("socket");
-        exit(EXIT_FAILURE);
-    }
-
-    memset(&addr, 0, addrlen);
+    memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
     addr.sin_port = htons(SERVER_PORT);
+    inet_pton(AF_INET, SERVER_IP, &addr.sin_addr);
 
-    if (inet_pton(AF_INET, SERVER_IP, &addr.sin_addr.s_addr) <= 0) {
-        fprintf(stderr, "Wrong IP-adress\n");
-        close(server_fd);
-        exit(EXIT_FAILURE);
+    /* connect to server */
+    if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        perror("connect"); exit(1);
     }
 
-    if (connect(server_fd, (struct sockaddr*)&addr, addrlen) < 0) {
-        perror("connect");
-        close(server_fd);
-        exit(EXIT_FAILURE);
-    }
+    /* prepare client struct that will be sent to server */
+    Client me;
+    memset(&me, 0, sizeof(me));
 
-    printf("Connected with: %s:%d\n\n", SERVER_IP, SERVER_PORT);
+    /* ask user for name */
+    printf("Name: ");
+    fgets(me.name, MAX_NAME, stdin);
 
-    printf("You: ");
-    while (fgets(buffer, BUFFER_SIZE, stdin)) {
-        size_t len = strlen(buffer);
-        if (len > 0 && buffer[len-1] == '\n') buffer[len-1] = '\0';
-        
-        ssize_t s = send_exactly(server_fd, buffer, len);
-        if (s < 0) {
-            perror("send");
+    /* remove trailing newline */
+    me.name[strcspn(me.name, "\n")] = 0;
+
+    /* store server ip (for now we just reuse SERVER_IP) */
+    strcpy(me.ip, SERVER_IP);
+
+    /* send client metadata to server */
+    send_all(sock, &me, sizeof(me));
+
+    /* poll two descriptors:
+       0  -> stdin
+       sock -> server socket */
+    struct pollfd fds[2];
+    fds[0].fd = 0;      /* stdin */
+    fds[0].events = POLLIN;
+    fds[1].fd = sock;   /* socket */
+    fds[1].events = POLLIN;
+
+    printf("Connected. Start chatting.\n");
+    printf("\nYou: ");
+    fflush(stdout);
+
+    while (1) {
+
+        /* wait for input from either stdin or socket */
+        if (poll(fds, 2, -1) < 0)
             break;
+
+        /* ---------- user input ---------- */
+        if (fds[0].revents & POLLIN) {
+
+            char buf[BUFFER_SIZE];
+
+            /* read line from stdin */
+            if (!fgets(buf, sizeof(buf), stdin))
+                break;
+
+            /* strip newline */
+            buf[strcspn(buf, "\n")] = 0;
+
+            /* ignore empty messages */
+            if (strlen(buf) == 0) {
+                printf("You: ");
+                fflush(stdout);
+                continue;
+            }
+
+            /* move cursor one line up and clear the old prompt line
+               this removes "You: <message>" */
+            printf("\033[A\r\033[2K");
+            fflush(stdout);
+
+            /* send raw message to server
+               server will format and broadcast it back */
+            if (send_all(sock, buf, strlen(buf)) < 0)
+                break;
         }
 
-        ssize_t n = recv(server_fd, buffer, BUFFER_SIZE, 0); 
-        if (n <= 0) {
-            if (n < 0) perror("recv");
-            printf("Server closed the connection\n");
-            break;
+        /* ---------- incoming message from server ---------- */
+        if (fds[1].revents & POLLIN) {
+
+            char buf[BUFFER_SIZE];
+
+            /* read data from server */
+            ssize_t n = recv(sock, buf, sizeof(buf) - 1, 0);
+            if (n <= 0)
+                break;
+
+            buf[n] = '\0';
+
+            /* clear current prompt line before printing message */
+            printf("\r\033[2K");
+
+            /* print formatted message (already includes timestamp and name) */
+            printf("%s", buf);
+
+            /* draw new prompt at the bottom */
+            printf("You: ");
+            fflush(stdout);
         }
-        
-        buffer[n-1] = '\0';
-        log_msg(SERVER_IP, SERVER_PORT, buffer);
-        printf("You: "); 
     }
 
-    close(server_fd);
-    printf("Connection is closed\n");
+    close(sock);
     return 0;
 }

@@ -13,11 +13,11 @@ all:
 	@$(MAKE) -q $(SERVER) && echo "'server' is up to date." || $(MAKE) $(SERVER)
 	@$(MAKE) -q $(CLIENT) && echo "'client' is up to date." || $(MAKE) $(CLIENT)
 
-$(SERVER): server.c
-	$(CC) $(CFLAGS) -o $@ $<
+$(SERVER): server.c helpers.c
+	$(CC) $(CFLAGS) -o $@ server.c helpers.c
 
-$(CLIENT): client.c
-	$(CC) $(CFLAGS) -o $@ $<
+$(CLIENT): client.c helpers.c
+	$(CC) $(CFLAGS) -o $@ client.c helpers.c
 
 clean:
 	rm -f $(SERVER) $(CLIENT)

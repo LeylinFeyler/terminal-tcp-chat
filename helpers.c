@@ -1,65 +1,72 @@
-// helpers.c
-
-#include <stdio.h>
-#include <stdlib.h>
+#include "helpers.h"
 #include <unistd.h>
-#include <string.h>
 #include <errno.h>
 #include <time.h>
-#include <stdbool.h>
+#include <stdio.h>
+#include <string.h>
 
-#include <arpa/inet.h>
-#include <asm-generic/socket.h>
+/* send exactly len bytes to the socket.
+   this handles partial sends, which are normal for tcp.
+   returns total bytes sent or -1 on error. */
+ssize_t send_all(int fd, const void *buf, size_t len) {
 
-#define SERVER_PORT     8080
-#define SERVER_IP       "127.0.0.1"
+    size_t total = 0;          /* how many bytes were sent so far */
+    const char *p = buf;       /* pointer to current position in buffer */
 
-#define BUFFER_SIZE     1024
-#define NUM_OF_CLIENTS  5
+    while (total < len) {
 
-typedef struct {
-    int fd;
-    char* name;
-    bool active;
-}Client;
+        /* try to send remaining bytes */
+        ssize_t s = send(fd, p + total, len - total, MSG_NOSIGNAL);
 
-void log_msg(const char* ip, uint16_t port, const char* msg) {
-    time_t now;
-    struct tm* timeinfo;
-    char timestr[80];
-    time(&now);
-    timeinfo = localtime(&now);
-    strftime(timestr, 80, "[%I:%M%p]", timeinfo);
-    printf("%s %s:%u → %s\n", timestr, ip, port, msg);
-}
+        if (s <= 0) {
+            /* interrupted by signal → retry */
+            if (errno == EINTR)
+                continue;
 
-ssize_t send_exactly(int fd, const char* buf, size_t len) {
-    size_t total = 0;
-
-    while (total < 1) {
-        ssize_t sent = send(fd, buf + total, len - total, MSG_NOSIGNAL);
-        if (sent <= 0) {
-            if (sent == 0) return -1;   // connection is closed
-            if (errno == EINTR) continue;
+            /* any other error → fail */
             return -1;
         }
-        total += sent;
+
+        total += s;
     }
+
     return total;
 }
 
-ssize_t recv_msg(int fd, char* buf, size_t len) {
-    size_t total = 0;
+/* receive exactly len bytes from the socket.
+   used for fixed-size structs (like Client).
+   returns total bytes read or -1 on error. */
+ssize_t recv_all(int fd, void *buf, size_t len) {
+
+    size_t total = 0;      /* how many bytes were read */
+    char *p = buf;         /* pointer to current write position */
 
     while (total < len) {
-        ssize_t r = recv(fd, buf + total, len - total, 0);
+
+        ssize_t r = recv(fd, p + total, len - total, 0);
+
         if (r <= 0) {
-            if (errno == EINTR) continue;
+            /* interrupted by signal → retry */
+            if (errno == EINTR)
+                continue;
+
+            /* connection closed or error */
             return -1;
         }
-        if (r == 0) return total;   // connection is closed
+
         total += r;
     }
 
     return total;
+}
+
+/* create a simple timestamp like: [18:42]
+   used for log formatting */
+void make_timestamp(char *out, size_t size) {
+
+    time_t now = time(NULL);        /* get current time */
+    struct tm *t = localtime(&now); /* convert to local time */
+
+    /* format into [HH:MM] */
+    strftime(out, size, "[%H:%M]", t);
 }
