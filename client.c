@@ -5,6 +5,47 @@
 #include <unistd.h>
 #include <poll.h>
 
+int receive_file(int fd) {
+
+    long filesize;
+
+    /* receive file size first */
+    if (recv_all(fd, &filesize, sizeof(filesize)) < 0)
+        return -1;
+
+    long received = 0;
+    char buffer[BUFFER_SIZE];
+
+    while (received < filesize) {
+
+        ssize_t n = recv(fd, buffer,
+                         (filesize - received > BUFFER_SIZE)
+                         ? BUFFER_SIZE
+                         : filesize - received,
+                         0);
+
+        if (n <= 0)
+            return -1;
+
+        received += n;
+
+        /* if this is the last chunk */
+        if (received == filesize) {
+
+            /* if file ends with newline, remove only that one */
+            if (n > 0 && buffer[n - 1] == '\n') {
+                fwrite(buffer, 1, n - 1, stdout);
+                continue;
+            }
+        }
+
+        /* otherwise print everything */
+        fwrite(buffer, 1, n, stdout);
+    }
+
+    return 0;
+}
+
 int main(void) {
 
     /* create tcp socket */
@@ -49,7 +90,8 @@ int main(void) {
     fds[1].fd = sock;   /* socket */
     fds[1].events = POLLIN;
 
-    printf("Connected. Start chatting.\n");
+    printf("Connected. Start chatting.\n\n");
+    receive_file(sock);
     printf("\nYou: ");
     fflush(stdout);
 

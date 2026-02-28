@@ -68,5 +68,5 @@ void make_timestamp(char *out, size_t size) {
     struct tm *t = localtime(&now); /* convert to local time */
 
     /* format into [HH:MM] */
-    strftime(out, size, "[%H:%M]", t);
+    strftime(out, size, "[%H:%M%p]", t);
 }

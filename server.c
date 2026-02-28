@@ -27,6 +27,38 @@ void broadcast(const char *msg, size_t len) {
     }
 }
 
+int send_file(int fd, const char *filename) {
+
+    FILE *file = fopen(filename, "rb");
+    if (!file)
+        return -1;
+
+    /* move to end to get file size */
+    fseek(file, 0, SEEK_END);
+    long filesize = ftell(file);
+    rewind(file);
+
+    /* send file size first */
+    if (send_all(fd, &filesize, sizeof(filesize)) < 0) {
+        fclose(file);
+        return -1;
+    }
+
+    char buffer[BUFFER_SIZE];
+    size_t n;
+
+    /* send file content in chunks */
+    while ((n = fread(buffer, 1, sizeof(buffer), file)) > 0) {
+        if (send_all(fd, buffer, n) < 0) {
+            fclose(file);
+            return -1;
+        }
+    }
+
+    fclose(file);
+    return 0;
+}
+
 int main(void) {
 
     /* create tcp socket */
@@ -110,17 +142,7 @@ int main(void) {
             client_count++;
 
             /* send chat history to the newly connected client */
-            FILE *history = fopen("chat.log", "r");
-            if (history) {
-
-                char line[BUFFER_SIZE];
-
-                while (fgets(line, sizeof(line), history)) {
-                    send_all(cfd, line, strlen(line));
-                }
-
-                fclose(history);
-            }
+            send_file(cfd, "chat.log");
 
             /* create join message */
             char timestamp[32];
