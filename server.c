@@ -10,6 +10,33 @@
 #include <poll.h>
 #include <sys/epoll.h>
 
+/* TODO
+
+client logic/commands – recognize special strings (e.g., /msg user text, /list, /nick 
+new_name) and not just send them, but process them accordingly.
+
+configuration via arguments – port, IP, maximum number of clients, path to log file, etc.; 
+currently, all values are hardcoded.
+
+More flexible client structure – use a dynamic list/vector instead of a static array, allow 
+automatic expansion.
+
+Guaranteed delivery and validation – check the results of send_all() in broadcast() and 
+respond (delete “dead” sockets).
+
+Signal handling and proper termination – close all clients, log file, output statistics on 
+SIGINT/SIGTERM.
+
+Extended logging – split into files by date, log level, or connect to syslog/rotation.
+
+Encryption/authentication – add TLS (OpenSSL, mbedTLS) or simple authorization 
+(passwords).
+
+File transfers – command from the client sendfile <path> and the server sends the 
+content; the server already has send_file, so it can be reused.
+*/
+
+
 /* structure that represents a connected client */
 typedef struct {
     int fd;         
@@ -76,7 +103,7 @@ void run_server_select(void) {
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
     addr.sin_port = htons(SERVER_PORT);
-    inet_pton(AF_INET, SERVER_IP, &addr.sin_addr);
+    addr.sin_addr.s_addr = INADDR_ANY;
 
     /* bind socket to address */
     if (bind(server_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {

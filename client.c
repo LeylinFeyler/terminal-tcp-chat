@@ -8,6 +8,24 @@
 #include <poll.h>
 #include <sys/epoll.h>
 
+/* TODO
+
+command line parameters – server IP/port, name, log file, select/poll/epoll selection.
+
+command interface – the same /quit, /msg, /nick, /help; parse them locally and do not 
+search for them via the server.
+
+reconnect/timeout implementation – if the connection is lost, try to reconnect several 
+times; timeouts for connect/recv.
+
+input editing and history – interactive input with history (readline can be used).
+
+Encryption/authentication – the client should initiate TLS and transmit login/password.
+
+Visual improvements – colors, notifications, local log (so as not to lose text if the server 
+is down).
+*/
+
 int receive_file(int fd) {
 
     long filesize;
@@ -49,7 +67,7 @@ int receive_file(int fd) {
     return 0;
 }
 
-void run_client_select(void) {
+void run_client_select(const char *server_ip) {
 
     /* create tcp socket */
     int sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -60,7 +78,8 @@ void run_client_select(void) {
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
     addr.sin_port = htons(SERVER_PORT);
-    inet_pton(AF_INET, SERVER_IP, &addr.sin_addr);
+    //char *server_ip = "192.168.0.103"; 
+    inet_pton(AF_INET, server_ip, &addr.sin_addr);
 
     /* connect to server */
     if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
@@ -412,8 +431,15 @@ void run_client_epoll(void) {
     close(epfd);
 }
 
-int main(void) {
-    run_client_select();
+int main(int argc, char** argv) {
+    if (argc < 2) {
+        printf("Usage: %s <server_ip>\n", argv[0]);
+        return 1;
+    }
+
+    char *server_ip = argv[1];
+
+    run_client_select(server_ip);
     // run_client_poll();
     // run_client_epoll();
     

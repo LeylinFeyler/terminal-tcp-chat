@@ -5,6 +5,22 @@
 #include <stdio.h>
 #include <string.h>
 
+/* TODO
+
+configurable logging – log_info(), log_error() functions with levels and 
+writing to file/stderr.
+
+extended timestamp – show date, seconds, milliseconds, or ISO 
+format.
+
+switch to “manual” terminal mode – for editing the client string.
+
+Universal utilities – set_nonblocking(), parse_args(), etc., to avoid 
+duplication in both modules.
+*/
+
+
+
 /* send exactly len bytes to the socket.
    this handles partial sends, which are normal for tcp.
    returns total bytes sent or -1 on error. */

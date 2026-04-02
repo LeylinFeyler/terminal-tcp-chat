@@ -1,3 +1,9 @@
+<!-- 
+TODO
+
+Documentation – command descriptions, examples of running 
+clients/servers with different options. -->
+
 # Terminal TCP Chat (C)
 
 This is a simple multi-client TCP chat written in C.

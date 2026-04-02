@@ -1,3 +1,7 @@
+# TODO
+#
+# Build flags – DEBUG, USE_SSL, select/poll/epoll implementation selection.
+
 .PHONY: all clean
 
 MAKEFLAGS += --no-print-directory --silent
